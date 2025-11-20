@@ -24,7 +24,7 @@ You also need to ensure you have [Jotunn](https://thunderstore.io/c/valheim/p/Va
 ## FAQ
 
 How is this different than all of the other infinite fuel mods?
-A. They all work slightly differently, most patch methods on the fire source that allow them to constantly add fuel, or trigger repeating scripts. Most are also hand targeted to specific fire sources
+A. They all work slightly differently, most patch methods on the fire source that allow them to constantly add fuel, or trigger repeating scripts.
 
 Why did I make this?
 A. I wanted a clean, simple mod which provides infinite fuel to all light sources.

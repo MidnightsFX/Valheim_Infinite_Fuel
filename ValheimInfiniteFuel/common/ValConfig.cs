@@ -1,4 +1,5 @@
 ﻿using BepInEx.Configuration;
+using System.Collections.Generic;
 
 namespace ValheimInfiniteFire.common
 {
@@ -6,6 +7,7 @@ namespace ValheimInfiniteFire.common
     {
         public static ConfigFile cfg;
 
+        public static Dictionary<string, ConfigEntry<bool>> NoFuelConfigs = new Dictionary<string, ConfigEntry<bool>>();
         public static ConfigEntry<bool> EnableDebugMode;
 
         public ValConfig(ConfigFile cf) {

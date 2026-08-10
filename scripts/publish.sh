@@ -1,12 +1,12 @@
 #!/bin/sh
 
 target="Debug"
-targetPath="ValheimInfiniteFuel/bin/$target/net48"
-targetAssembly="ValheimInfiniteFuel.dll"
+targetPath="ValheimInfiniteFire/bin/$target/net48"
+targetAssembly="ValheimInfiniteFire.dll"
 valheimPath=""
 bepinexPath=""
 deployPath=""
-projectPath="./ValheimInfiniteFuel"
+projectPath="./ValheimInfiniteFire"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in

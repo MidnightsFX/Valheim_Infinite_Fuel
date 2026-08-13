@@ -28,7 +28,7 @@ namespace ValheimInfiniteFire {
         [HarmonyPatch(typeof(CookingStation), nameof(CookingStation.GetFuel))]
         internal static class CookerGetFuel {
             [HarmonyPostfix]
-            internal static void Postfix(Smelter __instance, ref float __result) {
+            internal static void Postfix(CookingStation __instance, ref float __result) {
                 string prefabname = Utils.GetPrefabName(__instance.gameObject.name);
 
                 ValConfig.NoFuelConfigs.TryGetValue(prefabname, out ConfigEntry<bool> status);
@@ -68,6 +68,19 @@ namespace ValheimInfiniteFire {
                     __result = "No Fuel Needed.";
                     return;
                 }
+            }
+        }
+
+        /// <summary>
+        ///  Decouples smoke from the gameplay it chokes. IsBlocked feeds Fireplace.CheckUnderTerrain and
+        ///  Smelter.UpdateSmoke, which run at 0.25Hz and 1Hz per loaded piece, so this costs nothing per frame.
+        /// </summary>
+        [HarmonyPatch(typeof(SmokeSpawner), nameof(SmokeSpawner.IsBlocked))]
+        internal static class SmokeSpawnerNeverBlocked {
+            [HarmonyPostfix]
+            internal static void Postfix(ref bool __result) {
+                if (ValConfig.SmokeSuffocation.Value) { return; }
+                __result = false;
             }
         }
     }

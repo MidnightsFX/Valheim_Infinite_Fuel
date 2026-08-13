@@ -19,12 +19,17 @@ namespace ValheimInfiniteFire
     {
         public const string PluginGUID = "MidnightsFX.InfiniteFire";
         public const string PluginName = "InfiniteFire";
-        public const string PluginVersion = "1.1.0";
+        public const string PluginVersion = "1.2.0";
 
         public ValConfig cfg;
         public static ManualLogSource Log;
         public static Harmony HarmonyInstance { get; private set; }
-        public static Dictionary<string, SmokeSpawner> SmokeSpawners = new Dictionary<string, SmokeSpawner>();
+
+        /// <summary>
+        ///  PrefabManager.OnPrefabsRegistered is a ZNetScene.Awake postfix, so it runs again on every world entry.
+        ///  Only attach a SettingChanged handler the first time we see a prefab, or they stack up.
+        /// </summary>
+        private static readonly HashSet<string> SubscribedFuel = new HashSet<string>();
 
         public void Awake() {
 
@@ -37,8 +42,7 @@ namespace ValheimInfiniteFire
             PrefabManager.OnPrefabsRegistered += FindAllFireTypes;
             PrefabManager.OnPrefabsRegistered += FindAllSmelters;
             PrefabManager.OnPrefabsRegistered += FindAllCookingStation;
-            // TODO: Nosmoke dynamics
-            //PrefabManager.OnPrefabsRegistered += SmokeLess;
+            PrefabManager.OnPrefabsRegistered += SmokeControl.OnPrefabsRegistered;
             common.Logger.LogDebug("Lets Light it up");
         }
 
@@ -48,7 +52,7 @@ namespace ValheimInfiniteFire
 
                 string prefabname = Utils.GetPrefabName(station.gameObject.name);
                 ConfigEntry<bool> enableFuel = ValConfig.BindServerConfig("InfiniteFuel", prefabname, true, "Enable infinite fuel for this cooking station.");
-                ValConfig.NoFuelConfigs.Add(prefabname, enableFuel);
+                ValConfig.NoFuelConfigs[prefabname] = enableFuel;
                 common.Logger.LogDebug($"Registering {prefabname} with InfiniteFuel {enableFuel.Value}");
             }
         }
@@ -59,13 +63,16 @@ namespace ValheimInfiniteFire
                 ConfigEntry<bool> enableFire = ValConfig.BindServerConfig("InfiniteFire", prefabname, true, "Enable infinite fuel for this fire.");
                 common.Logger.LogDebug($"Registering {prefabname} with infinitefire {enableFire.Value}");
                 fire.m_infiniteFuel = enableFire.Value;
-                enableFire.SettingChanged += (sender, args) => {
-                    foreach(Fireplace fp in Resources.FindObjectsOfTypeAll<Fireplace>().Where(fp => fp.gameObject.name.StartsWith(prefabname))) {
-                        common.Logger.LogDebug($"Updating {fp.name} to InfiniteFire:{enableFire.Value}");
-                        fp.m_infiniteFuel = enableFire.Value;
-                    }
-                };
-                ValConfig.NoFuelConfigs.Add(prefabname, enableFire);
+                if (SubscribedFuel.Add(prefabname)) {
+                    enableFire.SettingChanged += (sender, args) => {
+                        // Exact match, not StartsWith: fire_pit must not drag fire_pit_iron along with it.
+                        foreach(Fireplace fp in Resources.FindObjectsOfTypeAll<Fireplace>().Where(fp => Utils.GetPrefabName(fp.gameObject.name) == prefabname)) {
+                            common.Logger.LogDebug($"Updating {fp.name} to InfiniteFire:{enableFire.Value}");
+                            fp.m_infiniteFuel = enableFire.Value;
+                        }
+                    };
+                }
+                ValConfig.NoFuelConfigs[prefabname] = enableFire;
             }
         }
 
@@ -73,63 +80,10 @@ namespace ValheimInfiniteFire
             foreach(Smelter smelter in Resources.FindObjectsOfTypeAll<Smelter>()) {
                 string prefabname = Utils.GetPrefabName(smelter.gameObject.name);
                 ConfigEntry<bool> enableFuel = ValConfig.BindServerConfig("InfiniteFuel", prefabname, false, "Enable infinite fuel for this smelter.");
-                ValConfig.NoFuelConfigs.Add(prefabname, enableFuel);
+                ValConfig.NoFuelConfigs[prefabname] = enableFuel;
                 common.Logger.LogDebug($"Registering {prefabname} with InfiniteFuel {enableFuel.Value}");
             }
         }
 
-        public static void SmokeLess() {
-            foreach (Smelter smelter in Resources.FindObjectsOfTypeAll<Smelter>()) {
-                if (smelter.m_smokeSpawner == null) { continue; }
-
-                string prefabname = Utils.GetPrefabName(smelter.gameObject.name);
-                ConfigEntry<bool> noSmoke = ValConfig.BindServerConfig("NoSmoke", prefabname, false, "Enable or disable smoke for this smelter.");
-                SmokeSpawners.Add(prefabname, smelter.m_smokeSpawner);
-                common.Logger.LogDebug($"Registering {prefabname} for NoSmoke Options {noSmoke.Value}");
-
-                noSmoke.SettingChanged += (sender, args) => {
-                    foreach (Smelter fp in Resources.FindObjectsOfTypeAll<Smelter>().Where(fp => fp.gameObject.name.StartsWith(prefabname))) {
-                        common.Logger.LogDebug($"Updating {fp.name} to NoSmoke:{noSmoke.Value}");
-                        if (noSmoke.Value) {
-                            if (smelter.m_smokeSpawner != null) {
-                                Destroy(smelter.m_smokeSpawner);
-                            }
-                            smelter.m_smokeSpawner = null;
-                        } else {
-                            SmokeSpawners.TryGetValue(prefabname, out SmokeSpawner smoker);
-                            if (smoker != null) {
-                                smelter.m_smokeSpawner = smoker;
-                            }
-                        }
-                    }
-                };
-            }
-
-            foreach (Fireplace smelter in Resources.FindObjectsOfTypeAll<Fireplace>()) {
-                if (smelter.m_smokeSpawner == null) { continue; }
-
-                string prefabname = Utils.GetPrefabName(smelter.gameObject.name);
-                ConfigEntry<bool> noSmoke = ValConfig.BindServerConfig("NoSmoke", prefabname, false, "Enable or disable smoke for this Fireplace.");
-                SmokeSpawners.Add(prefabname, smelter.m_smokeSpawner);
-                common.Logger.LogDebug($"Registering {prefabname} for NoSmoke Options {noSmoke.Value}");
-
-                noSmoke.SettingChanged += (sender, args) => {
-                    foreach (Fireplace fp in Resources.FindObjectsOfTypeAll<Fireplace>().Where(fp => fp.gameObject.name.StartsWith(prefabname))) {
-                        common.Logger.LogDebug($"Updating {fp.name} to NoSmoke:{noSmoke.Value}");
-                        if (noSmoke.Value) {
-                            if (smelter.m_smokeSpawner != null) {
-                                Destroy(smelter.m_smokeSpawner);
-                            }
-                            smelter.m_smokeSpawner = null;
-                        } else {
-                            SmokeSpawners.TryGetValue(prefabname, out SmokeSpawner smoker);
-                            if (smoker != null) {
-                                smelter.m_smokeSpawner = smoker;
-                            }
-                        }
-                    }
-                };
-            }
-        }
     }
 }

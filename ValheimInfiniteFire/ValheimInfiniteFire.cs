@@ -19,7 +19,7 @@ namespace ValheimInfiniteFire
     {
         public const string PluginGUID = "MidnightsFX.InfiniteFire";
         public const string PluginName = "InfiniteFire";
-        public const string PluginVersion = "1.2.0";
+        public const string PluginVersion = "1.2.1";
 
         public ValConfig cfg;
         public static ManualLogSource Log;

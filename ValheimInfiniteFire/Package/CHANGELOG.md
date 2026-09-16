@@ -1,3 +1,10 @@
+**1.3.0**
+ ---
+ ```
+ - Compatibility improvements and better docs
+ - Jotunn requirement updated to 2.30.0
+ ```
+
 **1.2.1**
  ---
  ```

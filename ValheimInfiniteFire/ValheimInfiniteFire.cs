@@ -19,7 +19,7 @@ namespace ValheimInfiniteFire
     {
         public const string PluginGUID = "MidnightsFX.InfiniteFire";
         public const string PluginName = "InfiniteFire";
-        public const string PluginVersion = "1.2.1";
+        public const string PluginVersion = "1.3.0";
 
         public ValConfig cfg;
         public static ManualLogSource Log;
@@ -78,6 +78,10 @@ namespace ValheimInfiniteFire
 
         public static void FindAllSmelters() {
             foreach(Smelter smelter in Resources.FindObjectsOfTypeAll<Smelter>()) {
+                // UpdateSmelter ignores fuel entirely at m_maxFuel 0 (windmill, spinning wheel, charcoal kiln), so a
+                // toggle for those would do nothing.
+                if (smelter.m_fuelItem == null || smelter.m_maxFuel <= 0) { continue; }
+
                 string prefabname = Utils.GetPrefabName(smelter.gameObject.name);
                 ConfigEntry<bool> enableFuel = ValConfig.BindServerConfig("InfiniteFuel", prefabname, false, "Enable infinite fuel for this smelter.");
                 ValConfig.NoFuelConfigs[prefabname] = enableFuel;

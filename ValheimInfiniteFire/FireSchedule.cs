@@ -8,7 +8,7 @@ using ValheimInfiniteFire.common;
 namespace ValheimInfiniteFire
 {
     /// <summary>
-    ///  A per piece clock: each toggleable fire type can be given a window of the in game day it stays unlit.
+    ///  A per piece clock: each fire type can be given a window of the in game day it stays unlit.
     ///
     ///  This never writes fire state into the world. Fireplace.IsBurning() is the one gate every consumer of
     ///  "is this fire lit" goes through, so a postfix forcing it false turns the visuals off (UpdateState), stops
@@ -38,8 +38,8 @@ namespace ValheimInfiniteFire
         private static readonly Dictionary<int, long> OffSince = new Dictionary<int, long>();
         /// <summary>OnPrefabsRegistered fires on every world entry, so only ever subscribe once per prefab.</summary>
         private static readonly HashSet<string> SubscribedSchedule = new HashSet<string>();
-        /// <summary>key=value of every rejected setting already warned about. ConfigurationManager raises
-        /// SettingChanged per keystroke, so without this a typo logs a line for every partial value.</summary>
+        /// <summary>key=value of every rejected setting already warned about, so a bad value left in place is
+        /// reported once rather than on every world entry and every close of the configuration manager.</summary>
         private static readonly HashSet<string> WarnedValues = new HashSet<string>();
 
         private static double LastClockRead = double.NegativeInfinity;
@@ -57,38 +57,48 @@ namespace ValheimInfiniteFire
             "dark through the day and lit at night. Accepts 6, 6.5 and 06:30, and wraps past midnight (22:00-04:00). " +
             "Leave empty for no schedule. A start equal to its end is ambiguous and is treated as no schedule.";
 
+        /// <summary>Config section every schedule setting lives in, ScheduleCheckInterval included.</summary>
+        public const string Section = "off_schedule";
+
         /// <summary>Number of scheduled types. The patches read this first so an unused feature costs nothing.</summary>
         public static int Count => Windows.Count;
 
         public static void OnPrefabsRegistered() {
+            // Every fireplace, not just the ones vanilla lets you switch off. Nothing here writes fire state, so a
+            // schedule can never strand a fire dark: it relights at its boundary, and clearing the setting or
+            // removing the mod brings it straight back. Of the vanilla fires only Candle_resin has m_canTurnOff,
+            // so filtering on it would leave out every torch and brazier.
             foreach (Fireplace fire in Resources.FindObjectsOfTypeAll<Fireplace>()) {
-                // Fires that cannot be toggled are left out on purpose. Fireplace.Interact refuses to relight them,
-                // so a player could never override or recover one that the schedule had put out.
-                if (fire == null || !fire.m_canTurnOff) { continue; }
+                if (fire == null) { continue; }
 
                 string prefabname = Utils.GetPrefabName(fire.gameObject.name);
                 if (!ValConfig.ScheduleConfigs.TryGetValue(prefabname, out ConfigEntry<string> schedule)) {
-                    schedule = ValConfig.BindServerConfig("Schedule", prefabname, "", SettingDescription);
+                    schedule = ValConfig.BindServerConfig(Section, prefabname, "", SettingDescription);
                     ValConfig.ScheduleConfigs[prefabname] = schedule;
-                    common.Logger.LogDebug($"Registering {prefabname} with Schedule [{schedule.Value}]");
+                    common.Logger.LogDebug($"Registering [{Section}] {prefabname} = {schedule.Value}");
                 }
                 if (SubscribedSchedule.Add(prefabname)) {
                     schedule.SettingChanged += (sender, args) => ReadConfig();
                 }
             }
 
-            // A server push that lands before the entries above exist is dropped by Jotunn, and the local default
-            // would be used silently. Re-reading on sync closes that window.
             if (!SubscribedToSync) {
                 SubscribedToSync = true;
-                SynchronizationManager.OnConfigurationSynchronized += (sender, args) => ReadConfig();
+                // A server push that lands before the entries above exist is dropped by Jotunn, and the local
+                // default would be used silently. Re-reading on sync closes that window.
+                SynchronizationManager.OnConfigurationSynchronized += (sender, args) => { ReadConfig(); WarnInvalid(); };
+                // SettingChanged fires on every keystroke in the configuration manager, so a bad value is only
+                // reported once the admin is done typing, not once per partial value on the way there.
+                SynchronizationManager.OnConfigurationWindowClosed += WarnInvalid;
             }
             ReadConfig();
+            WarnInvalid();
         }
 
         /// <summary>
         ///  Parses every schedule setting into Windows. Called on world entry, on any setting change and on config
-        ///  sync, so parsing never happens on the path the patches take.
+        ///  sync, so parsing never happens on the path the patches take. Unreadable values are treated as no
+        ///  schedule here without comment, see WarnInvalid.
         /// </summary>
         private static void ReadConfig() {
             Windows.Clear();
@@ -99,15 +109,25 @@ namespace ValheimInfiniteFire
                 string raw = entry.Value.Value;
                 if (string.IsNullOrEmpty(raw) || raw.Trim().Length == 0) { continue; }
 
-                if (!TryParseWindow(raw, out float from, out float to)) {
-                    // Warning, not debug. A typo that silently leaves a base lit is the failure nobody diagnoses.
-                    if (WarnedValues.Add(entry.Key + "=" + raw)) {
-                        common.Logger.LogWarning($"Ignoring Schedule for {entry.Key}, [{raw}] is not a Start-End time range.");
-                    }
-                    continue;
-                }
+                if (!TryParseWindow(raw, out float from, out float to)) { continue; }
                 Windows[entry.Key.GetStableHashCode()] = new Window(from, to);
                 common.Logger.LogDebug($"Scheduling {entry.Key} off from {from:0.##} to {to:0.##}");
+            }
+        }
+
+        /// <summary>
+        ///  Reports every schedule setting that ReadConfig had to ignore. Runs on world entry, on server sync and
+        ///  when the configuration manager closes, and says each bad value once.
+        /// </summary>
+        private static void WarnInvalid() {
+            foreach (KeyValuePair<string, ConfigEntry<string>> entry in ValConfig.ScheduleConfigs) {
+                string raw = entry.Value.Value;
+                if (string.IsNullOrEmpty(raw) || raw.Trim().Length == 0) { continue; }
+                if (TryParseWindow(raw, out _, out _)) { continue; }
+                // Warning, not debug. A typo that silently leaves a base lit is the failure nobody diagnoses.
+                if (WarnedValues.Add(entry.Key + "=" + raw)) {
+                    common.Logger.LogWarning($"Ignoring [{Section}] {entry.Key} = {raw}, it is not a Start-End time range.");
+                }
             }
         }
 

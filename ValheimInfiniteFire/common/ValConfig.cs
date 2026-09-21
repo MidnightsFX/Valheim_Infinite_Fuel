@@ -41,7 +41,7 @@ namespace ValheimInfiniteFire.common
                 "Spreading fires still expire after 30 seconds and still die in the rain.");
             SmokeSuffocation.SettingChanged += (sender, args) => SmokeControl.ApplyFireSuffocation();
 
-            ScheduleCheckInterval = BindServerConfig("Schedule", "ScheduleCheckInterval", 10f,
+            ScheduleCheckInterval = BindServerConfig(FireSchedule.Section, "ScheduleCheckInterval", 10f,
                 "How many in game seconds pass before a scheduled fire rechecks the clock. A Valheim day is 1200 " +
                 "seconds and the clock runs faster at night, an hour after dark being 30 seconds against 70 in " +
                 "daylight, so 10 puts a boundary up to about 20 in game minutes late at night and 9 by day. Lower " +

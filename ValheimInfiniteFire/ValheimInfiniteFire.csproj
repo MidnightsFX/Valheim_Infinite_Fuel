@@ -37,10 +37,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Include="app.config" />
-    <None Include="packages.config" />
-  </ItemGroup>
+  <!-- app.config and packages.config are deliberately NOT listed here. This is an
+       SDK-style project, so the default None glob already picks up every file in the
+       project folder. Listing them again makes each a duplicate None item, which the
+       SDK does not catch - CheckForDuplicateItems only covers Compile, EmbeddedResource
+       and Content - so the build stays green while Visual Studio's project tree ends up
+       with two nodes for one path and throws "Value does not fall within the expected
+       range." on every file selection. -->
 
   <ItemGroup>
     <PackageReference Include="JotunnLib" Version="2.30.0" />

@@ -9,7 +9,9 @@ namespace ValheimInfiniteFire.common
 
         public static Dictionary<string, ConfigEntry<bool>> NoFuelConfigs = new Dictionary<string, ConfigEntry<bool>>();
         public static Dictionary<string, ConfigEntry<bool>> SmokeConfigs = new Dictionary<string, ConfigEntry<bool>>();
+        public static Dictionary<string, ConfigEntry<string>> ScheduleConfigs = new Dictionary<string, ConfigEntry<string>>();
         public static ConfigEntry<bool> EnableDebugMode;
+        public static ConfigEntry<float> ScheduleCheckInterval;
         public static ConfigEntry<bool> SmokeDamage;
         public static ConfigEntry<bool> SmokeSuffocation;
 
@@ -38,6 +40,13 @@ namespace ValheimInfiniteFire.common
                 "smelters, kilns and blast furnaces never stall on smoke, and spreading fires are never put out by it. " +
                 "Spreading fires still expire after 30 seconds and still die in the rain.");
             SmokeSuffocation.SettingChanged += (sender, args) => SmokeControl.ApplyFireSuffocation();
+
+            ScheduleCheckInterval = BindServerConfig("Schedule", "ScheduleCheckInterval", 10f,
+                "How many in game seconds pass before a scheduled fire rechecks the clock. A Valheim day is 1200 " +
+                "seconds and the clock runs faster at night, an hour after dark being 30 seconds against 70 in " +
+                "daylight, so 10 puts a boundary up to about 20 in game minutes late at night and 9 by day. Lower " +
+                "is near enough free, the check is a handful of comparisons and only runs while a fire is loaded.",
+                new AcceptableValueRange<float>(1f, 120f), true);
         }
 
         /// <summary>
@@ -52,6 +61,42 @@ namespace ValheimInfiniteFire.common
         /// <param name="advanced"></param>
         /// <returns></returns>
         public static ConfigEntry<bool> BindServerConfig(string catagory, string key, bool value, string description, AcceptableValueBase acceptableValues = null, bool advanced = false) {
+            return cfg.Bind(catagory, key, value,
+                new ConfigDescription(description,
+                    acceptableValues,
+                new ConfigurationManagerAttributes { IsAdminOnly = true, IsAdvanced = advanced })
+                );
+        }
+
+        /// <summary>
+        ///  Helper to bind configs for float types
+        /// </summary>
+        /// <param name="catagory"></param>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="description"></param>
+        /// <param name="acceptableValues"></param>
+        /// <param name="advanced"></param>
+        /// <returns></returns>
+        public static ConfigEntry<float> BindServerConfig(string catagory, string key, float value, string description, AcceptableValueBase acceptableValues = null, bool advanced = false) {
+            return cfg.Bind(catagory, key, value,
+                new ConfigDescription(description,
+                    acceptableValues,
+                new ConfigurationManagerAttributes { IsAdminOnly = true, IsAdvanced = advanced })
+                );
+        }
+
+        /// <summary>
+        ///  Helper to bind configs for string types
+        /// </summary>
+        /// <param name="catagory"></param>
+        /// <param name="key"></param>
+        /// <param name="value"></param>
+        /// <param name="description"></param>
+        /// <param name="acceptableValues"></param>
+        /// <param name="advanced"></param>
+        /// <returns></returns>
+        public static ConfigEntry<string> BindServerConfig(string catagory, string key, string value, string description, AcceptableValueList<string> acceptableValues = null, bool advanced = false) {
             return cfg.Bind(catagory, key, value,
                 new ConfigDescription(description,
                     acceptableValues,

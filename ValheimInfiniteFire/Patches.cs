@@ -134,5 +134,93 @@ namespace ValheimInfiniteFire {
                 __result = false;
             }
         }
+
+        /// <summary>
+        ///  Reads the ZDO off a fireplace, or null for a prefab asset or a placement ghost, neither of which has
+        ///  one. Resources.FindObjectsOfTypeAll hands out both, and a ghost has its ZNetView destroyed outright.
+        /// </summary>
+        private static ZDO GetFireZDO(Fireplace fireplace) {
+            ZNetView nview = fireplace.m_nview;
+            if (nview == null || !nview.IsValid()) { return null; }
+            return nview.GetZDO();
+        }
+
+        /// <summary>
+        ///  The schedule. IsBurning is the single gate every consumer of "is this fire lit" goes through, so
+        ///  forcing it false darkens the piece through UpdateState, stops its fuel draining at UpdateFireplace and
+        ///  stops it igniting or throwing cinders, all in vanilla code. Nothing is written to the world, so there
+        ///  is no ZDO ownership to wait for, no sweep to run at dawn, and nothing left behind if the mod is
+        ///  removed.
+        ///
+        ///  Postfix, not prefix, so vanilla decides first and a scheduled fire is only ever forced dark.
+        ///
+        ///  This runs roughly once a second per loaded fireplace, off UpdateFireplace. With nothing scheduled that
+        ///  is a bool test and a Count compare. With a schedule set it is an int field read and a HashSet lookup,
+        ///  which is why the piece is identified by ZDO.GetPrefab and not Utils.GetPrefabName, which allocates a
+        ///  substring every call. The clock itself is only re-read once per ScheduleCheckInterval.
+        /// </summary>
+        [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.IsBurning))]
+        internal static class FireplaceScheduledOff {
+            [HarmonyPostfix]
+            internal static void Postfix(Fireplace __instance, ref bool __result) {
+                if (!__result || FireSchedule.Count == 0) { return; }
+                ZDO zdo = GetFireZDO(__instance);
+                if (zdo == null || !FireSchedule.IsOffNow(zdo)) { return; }
+                __result = false;
+            }
+        }
+
+        /// <summary>
+        ///  Lets a player light a scheduled fire by hand, which then holds until the next boundary.
+        ///
+        ///  The guard mirrors the vanilla toggle test in Fireplace.Interact exactly, so refuelling and the hold
+        ///  and alt paths are untouched. Without this the first press would toggle the stored state to off while
+        ///  the piece was already dark, so it would take two presses before anything visibly happened.
+        /// </summary>
+        [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.Interact))]
+        internal static class FireplaceScheduleOverride {
+            [HarmonyPrefix]
+            internal static bool Prefix(Fireplace __instance, bool hold, bool alt, ref bool __result) {
+                if (FireSchedule.Count == 0 || hold || alt || !__instance.m_canTurnOff) { return true; }
+                ZDO zdo = GetFireZDO(__instance);
+                if (zdo == null || zdo.GetFloat(ZDOVars.s_fuel) <= 0f) { return true; }
+                // Already false once this fire has been lit by hand, so a second press falls through to the
+                // vanilla toggle and puts it out again.
+                if (!FireSchedule.IsOffNow(zdo)) { return true; }
+
+                FireSchedule.LitByHand(__instance.m_nview);
+                // As far as the world is concerned this fire is already on and only the schedule was holding it
+                // dark, so let it light where it stands. If a player had switched it off by hand, fall through and
+                // let vanilla toggle it back on.
+                if (zdo.GetInt(ZDOVars.s_state, 1) != 1) { return true; }
+                // Vanilla repaints from RPC_ToggleOn, and we just skipped it. Without this the flame waits for
+                // the next UpdateFireplace tick, up to 2 seconds after the player pressed the key.
+                __instance.UpdateState();
+                __result = true;
+                return false;
+            }
+        }
+
+        /// <summary>
+        ///  With infinite fuel on, GetHoverText returns an empty string, so a scheduled fire would give the player
+        ///  nothing at all to explain why it is dark. Only runs while someone is looking at the piece.
+        /// </summary>
+        [HarmonyPatch(typeof(Fireplace), nameof(Fireplace.GetHoverText))]
+        internal static class FireplaceScheduleHover {
+            [HarmonyAfter("shudnal.MyLittleUI")]
+            [HarmonyPostfix]
+            internal static void Postfix(Fireplace __instance, ref string __result) {
+                if (FireSchedule.Count == 0) { return; }
+                ZDO zdo = GetFireZDO(__instance);
+                if (zdo == null || !FireSchedule.IsOffNow(zdo)) { return; }
+                float until = FireSchedule.OffUntil(zdo);
+                if (until < 0f) { return; }
+
+                if (string.IsNullOrEmpty(__result)) {
+                    __result = Localization.instance.Localize(__instance.m_name);
+                }
+                __result += $"\nScheduled off until {FireSchedule.FormatHour(until)}";
+            }
+        }
     }
 }

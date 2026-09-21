@@ -19,7 +19,7 @@ namespace ValheimInfiniteFire
     {
         public const string PluginGUID = "MidnightsFX.InfiniteFire";
         public const string PluginName = "InfiniteFire";
-        public const string PluginVersion = "1.3.0";
+        public const string PluginVersion = "1.4.0";
 
         public ValConfig cfg;
         public static ManualLogSource Log;
@@ -43,6 +43,7 @@ namespace ValheimInfiniteFire
             PrefabManager.OnPrefabsRegistered += FindAllSmelters;
             PrefabManager.OnPrefabsRegistered += FindAllCookingStation;
             PrefabManager.OnPrefabsRegistered += SmokeControl.OnPrefabsRegistered;
+            PrefabManager.OnPrefabsRegistered += FireSchedule.OnPrefabsRegistered;
             common.Logger.LogDebug("Lets Light it up");
         }
 

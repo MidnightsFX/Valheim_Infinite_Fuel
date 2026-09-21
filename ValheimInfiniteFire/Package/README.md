@@ -5,6 +5,7 @@ Choose which fires, crafting stations and cooking stations need fuel, and contro
 - **Infinite fire** - fire pits, bonfires, hearths, torches, braziers, lanterns and candles never run out of fuel
 - **Infinite fuel** - smelters, blast furnaces, eitr refineries, hot tubs and ovens run without fuel
 - **Smoke control** - turn smoke off for any piece, stop smoke hurting anyone, and stop smoke choking fires
+- **Schedule** - give torches, braziers and lanterns a time of day to go dark, and another to come back
 - Every piece has its own toggle, vanilla and modded pieces alike, and changes apply right away
 - Settings are synced from the server, so only admins can change them in multiplayer
 
@@ -28,7 +29,7 @@ mods, and the game only loads them when you enter a world. Before that, the conf
 configuration manager only show `[Client config]` and `[Smoke gameplay]`.
 
 1. Start the game and load into any world. A single player world is fine.
-2. The `[InfiniteFire]`, `[InfiniteFuel]` and `[Smoke]` sections are now in `BepInEx/config/MidnightsFX.InfiniteFire.cfg`
+2. The `[InfiniteFire]`, `[InfiniteFuel]`, `[Smoke]` and `[Schedule]` sections are now in `BepInEx/config/MidnightsFX.InfiniteFire.cfg`
    and in the configuration manager.
 3. Change them in game, or quit and edit the file.
 
@@ -46,6 +47,39 @@ out for every other vanilla reason: under water, buried in terrain, choked by sm
 or, for fires you can switch on and off, rain and strong wind. Turning a setting off makes that fire need fuel
 again, and fires already placed in the world update immediately.
 
+
+## Schedule
+
+`[Schedule]` gives a window of the in game day to stay dark to every fire you can switch on and off by using
+it, which is the standing and wall torches, braziers and similar pieces. Fire pits, hearths and bonfires do not
+get one, because the game gives you no way to relight those by hand, so a schedule could leave you with no way
+to get one back. Turn on `EnableDebugMode` if you want the log to list exactly which pieces qualified.
+
+Every setting starts empty, which means no schedule. Set one to a `Start-End` time range on a 24 hour clock:
+
+```
+[Schedule]
+piece_groundtorch = 06:00-18:00
+piece_walltorch = 22:00-04:00
+```
+
+The range is the time the fire stays **dark**, so `06:00-18:00` is a torch that burns through the night and
+goes out at sunrise. Ranges may wrap past midnight. `6`, `6.5` and `06:30` are all accepted. A range whose start
+matches its end is ignored, and so is anything the mod cannot read, with a warning in the log.
+
+Midnight is `00:00`, sunrise `06:00`, noon `12:00` and sunset `18:00`, matching the sky rather than the clock on
+the wall, so `06:00-18:00` really is daylight.
+
+- **You can still light one by hand.** Walk up to a torch inside its dark window and use it, and it burns until
+  the next scheduled change. Use it again to put it out. This is recorded on the piece itself, so everyone on
+  the server sees that torch lit, not just whoever lit it.
+- **Scheduled fires do not burn fuel while they are dark**, so a torch set to burn only at night lasts about
+  twice as long. This needs no setting, it falls out of how the game already counts fuel.
+- Rain and strong wind still put out an uncovered torch during its lit hours, exactly as in vanilla. The
+  schedule does not fight that, and does not relight it early.
+- `ScheduleCheckInterval` (default 10 seconds, admin only) is how often a fire rechecks the clock. The Valheim
+  day runs faster at night, so 10 seconds puts a change up to about 20 in game minutes late after dark and 9
+  minutes in daylight. Lower it if you want the change tighter, it costs almost nothing.
 
 ## Infinite fuel
 
@@ -106,6 +140,10 @@ connected. The server's values replace your local ones while you are connected, 
 leave. Everyone playing together should have the mod installed, because stations are run by whichever player's
 game is currently in charge of them.
 
+The schedule works out which fires are dark from the shared world clock and the server's settings, so every
+player sees the same torches lit at the same time. Lighting one by hand is recorded on the piece, so that is
+shared too. A player without the mod installed sees every fire lit as usual.
+
 
 ## Compatibility
 
@@ -121,6 +159,9 @@ game is currently in charge of them.
   added over and over, and infinite fuel stations stop saving a new fuel level every second
 - Turning smoke off removes the spawner from the game's per-frame update list rather than filtering it, so it
   is not just quieter, it is genuinely less work every frame
+- The schedule reads the clock at most once every `ScheduleCheckInterval`, and only while a fire is loaded and
+  asking. Nothing runs on a timer, nothing is written to your save, and with no schedule set it is a single
+  comparison. Placing a thousand torches does not make the check any slower
 
 
 ## FAQ
@@ -133,6 +174,9 @@ A. The server's values win while you are connected. An admin has to change it, o
 
 How is this different than all of the other infinite fuel mods?
 A. They all work slightly differently, most patch methods on the fire source that allow them to constantly add fuel, or trigger repeating scripts.
+
+My scheduled torch is dark and I cannot tell why?
+A. Look at it, the hover text says the hour it comes back on. Use it to light it early.
 
 Why did I make this?
 A. I wanted a clean, simple mod which provides infinite fuel to all light sources.

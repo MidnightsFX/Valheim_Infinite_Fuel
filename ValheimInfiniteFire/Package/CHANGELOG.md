@@ -1,3 +1,9 @@
+**1.4.0**
+ ---
+ ```
+ - Add daytime clock configuration, to allow on/off during configurable hours for all light sources (torches etc)
+ ```
+
 **1.3.0**
  ---
  ```
